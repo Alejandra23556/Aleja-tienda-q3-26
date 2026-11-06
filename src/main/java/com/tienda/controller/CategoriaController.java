@@ -1,61 +1,76 @@
 package com.tienda.controller;
 
-import com.tienda.service.ProductoService;
-import java.math.BigDecimal;
+import com.tienda.domain.Categoria;
+import com.tienda.service.CategoriaService;
+import jakarta.validation.Valid;
+import java.util.Locale;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
-@RequestMapping("/consultas")
-public class ConsultaController {
+@RequiredArgsConstructor
+@RequestMapping("/categoria")
+public class CategoriaController {
 
-    private final ProductoService productoService;
-
-    public ConsultaController(ProductoService productoService) {
-        this.productoService = productoService;
-    }
+    private final CategoriaService categoriaService;
+    private final MessageSource messageSource;
 
     @GetMapping("/listado")
     public String listado(Model model) {
-        var productos = productoService.getProductos(false);
-        model.addAttribute("productos", productos);
-        return "/consultas/listado";
+        var categorias = categoriaService.getCategorias(false);
+        model.addAttribute("categorias", categorias);
+        model.addAttribute("totalCategorias", categorias.size());
+        return "categoria/listado";
     }
 
-    @PostMapping("/consultaDerivada")
-    public String consultaDerivida(@RequestParam() BigDecimal precioInf,
-            @RequestParam() BigDecimal precioSup,
-            Model model) {
-        var productos = productoService.consultaDerivada(precioInf, precioSup);
-        model.addAttribute("productos", productos);
-        model.addAttribute("precioInf", precioInf);
-        model.addAttribute("precioSup", precioSup);
-        return "/consultas/listado";
+    @PostMapping("/guardar")
+    public String guardar(@Valid Categoria categoria, BindingResult bindingResult,
+            @RequestParam(value = "imagenFile", required = false) MultipartFile imagenFile,
+            RedirectAttributes redirectAttributes) {
+        String titulo = "todoOk";
+        String mensaje = "mensaje.actualizado";
+        if (bindingResult.hasErrors()) {
+            titulo = "error";
+            mensaje = "producto.error04";
+        } else {
+            try {
+                categoriaService.save(categoria, imagenFile);
+            } catch (DataIntegrityViolationException e) {
+                titulo = "error";
+                mensaje = "producto.error05";
+            }
+        }
+        redirectAttributes.addFlashAttribute(titulo, messageSource.getMessage(mensaje, null, Locale.getDefault()));
+        return "redirect:/categoria/listado";
     }
 
-    @PostMapping("/consultaJPQL")
-    public String consultaJPQL(@RequestParam() BigDecimal precioInf,
-            @RequestParam() BigDecimal precioSup,
-            Model model) {
-        var productos = productoService.consultaJPQL(precioInf, precioSup);
-        model.addAttribute("productos", productos);
-        model.addAttribute("precioInf", precioInf);
-        model.addAttribute("precioSup", precioSup);
-        return "/consultas/listado";
-    }
-
-    @PostMapping("/consultaSQL")
-    public String consultaSQL(@RequestParam() BigDecimal precioInf,
-            @RequestParam() BigDecimal precioSup,
-            Model model) {
-        var productos = productoService.consultaSQL(precioInf, precioSup);
-        model.addAttribute("productos", productos);
-        model.addAttribute("precioInf", precioInf);
-        model.addAttribute("precioSup", precioSup);
-        return "/consultas/listado";
+    @PostMapping("/eliminar")
+    public String eliminar(@RequestParam Integer idCategoria, RedirectAttributes redirectAttributes) {
+        String titulo = "todoOk";
+        String detalle = "mensaje.eliminado";
+        try {
+            categoriaService.delete(idCategoria);
+        } catch (IllegalArgumentException e) {
+            titulo = "error"; // Captura la excepción de argumento inválido para el mensaje de "no existe"
+            detalle = "categoria.error01";
+        } catch (IllegalStateException e) {
+            titulo = "error"; // Captura la excepción de estado ilegal para el mensaje de "datos asociados"
+            detalle = "categoria.error02";
+        } catch (Exception e) {
+            titulo = "error";  // Captura cualquier otra excepción inesperada
+            detalle = "categoria.error03";
+        }
+        redirectAttributes.addFlashAttribute(titulo, messageSource.getMessage(detalle, null, Locale.getDefault()));
+        return "redirect:/categoria/listado";
     }
 }
